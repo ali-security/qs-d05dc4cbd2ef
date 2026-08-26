@@ -1,18 +1,42 @@
 name: 'Tests: node.js < 10'
 
-on: [pull_request, push]
+on: [workflow_dispatch]
 
 jobs:
   tests:
-    uses: ljharb/actions/.github/workflows/node.yml@main
-    with:
-      range: '< 10'
-      type: minors
-      command: npm run tests-only
+    name: 'node ${{ matrix.node-version }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['0.8', '0.10', '0.12', 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: 'use time machine'
+        run: npm config set registry https://:2022-06-06T00:00:00.000Z@time-machines-npm.sealsecurity.io/
+      - name: 'npm install with Node 18'
+        # The old target npm is TLS-1.0/1.1-only and can't reach the registry, so
+        # install with Node 18; the target node only loads the result.
+        run: npm install
+      - name: 'run tests-only on the target node via nvm'
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+          nvm install "${{ matrix.node-version }}"
+          nvm use "${{ matrix.node-version }}"
+          node -v
+
+          npm run tests-only
 
   node:
     name: 'node < 10'
     needs: [tests]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - run: 'echo tests completed'

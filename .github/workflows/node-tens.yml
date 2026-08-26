@@ -1,18 +1,51 @@
 name: 'Tests: node.js >= 10'
 
-on: [pull_request, push]
+on: [workflow_dispatch]
 
 jobs:
   tests:
-    uses: ljharb/actions/.github/workflows/node.yml@main
-    with:
-      range: '>= 10'
-      type: minors
-      command: npm run tests-only
+    name: 'node ${{ matrix.node-version }}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 16, 14]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm config set registry https://:2022-06-06T00:00:00.000Z@time-machines-npm.sealsecurity.io/
+      - run: npm install
+      - run: npm run tests-only
+
+  pack:
+    name: 'pack qs-6.10.5.tgz'
+    needs: [tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # the published tarball was packed with node 18.3.0 / npm 8.11.0; pinning
+      # the node patch pins that exact npm, and with it npm pack's member set.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18.3.0
+      - run: npm config set registry https://:2022-06-06T00:00:00.000Z@time-machines-npm.sealsecurity.io/
+      - run: npm install
+      - run: npm run dist
+      - run: npm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qs-6.10.5-tgz
+          path: qs-6.10.5.tgz
+          if-no-files-found: error
 
   node:
     name: 'node >= 10'
     needs: [tests]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - run: 'echo tests completed'
